@@ -1,7 +1,7 @@
 library(tidyverse)
 library(stringr)
 # Load the data from the Excel file
-workout_data <- read.csv("data/raw/strong_lid.csv")
+workout_data <- read.csv("data/raw/lid/old_routine.csv")
 
 
 # First make it so that there is only one "iteration"
@@ -11,6 +11,8 @@ row_count <- nrow(no_iter)
 no_iter[c((nrow(no_iter)+1):(nrow(no_iter)+row_count)),] <- workout_data[,c(1,9:15)]
 no_iter[c((nrow(no_iter)+1):(nrow(no_iter)+row_count)),] <- workout_data[,c(1,16:22)]
 no_iter[c((nrow(no_iter)+1):(nrow(no_iter)+row_count)),] <- workout_data[,c(1,23:29)]
+no_iter[c((nrow(no_iter)+1):(nrow(no_iter)+row_count)),] <- workout_data[,c(1,30:36)]
+no_iter[c((nrow(no_iter)+1):(nrow(no_iter)+row_count)),] <- workout_data[,c(1,37:43)]
 
 colnames(no_iter) <- c("workout", "weight", "set_1", "set_2", "set_3", "set_4", "set_5", "set_6")
 
@@ -74,7 +76,6 @@ data_long$weight <- lapply(weight_notes, "[[", 1) |> unlist() # add weight back 
 
 # Add 'none' to notes for empty notes
 for(set in 1:length(weight_notes)){
-  print(set)
   if(length(weight_notes[[set]]) < 2){
     weight_notes[[set]] <- c(weight_notes[[set]], "none")
   }
@@ -102,28 +103,17 @@ data_long <- data_long %>%
   ungroup()
 
 # Make supported pull ups reflect bw
-bw <- 200
+bw <- 185
 data_adj <- data_long %>% 
   mutate(
+    #weight_adj = case_when(weight_adj == "" ~ 0),
     weight_adj = abs(as.numeric(weight_adj)),
-    weight_real = case_when(
+    bw_adjusted = case_when(
       str_detect(workout, "Pulldowns/Pullups/Chinups") ~ bw - weight_adj,
       str_detect(workout, "Bulgarian") ~ bw/2,
       str_detect(workout, "push-ups") ~ bw/2,
-      str_detect(workout, "Dips") ~ (bw/2) + weight_adj,
+      str_detect(workout, "Dips") ~ bw/2 + weight_adj,
       TRUE ~ weight_adj
-    )
-  )
-
-data
-data_long$weight_adj[which(is.na(data_long$weight_adj))]
-data_long %>% 
-  filter(workout == "4x8-12 Back Dips") |>
-  mutate(
-    weight_adj = case_when(weight_adj == "" ~ 0),
-    weight_adj = abs(as.numeric(weight_adj)),
-    weight_real = case_when(
-      str_detect(workout, "Dips") ~ bw/2 + weight_adj
     )
   )
 
@@ -136,7 +126,7 @@ data_adj <- data_adj %>%
   filter(reps != "empty" & reps != "Reps")
 
 data_adj$date <- data_adj$date %>% mdy() # Ridiculous date conversion for excel
-data_adj[which(data_adj$date == "2024-03-12" & data_adj$workout == "3x8-12 Pulldowns/Pullups/Chinups"),"weight_real"] <- 70
+#data_adj[which(data_adj$date == "2024-03-12" & data_adj$workout == "3x8-12 Pulldowns/Pullups/Chinups"),"weight_real"] <- 70
 
 
 # Cumulative weight moved over time
@@ -145,7 +135,7 @@ data_adj <- data_adj %>%
   arrange(., date) %>% 
   mutate(
     reps = as.numeric(reps),
-    weight_total = weight_real * reps,
+    weight_total = bw_adjusted * reps,
     weight_alltime = cumsum(weight_total/2204.6),
     day_type = case_when(
       workout_day %in% c("Pull A", "Pull B") ~ "Pull",
@@ -157,18 +147,3 @@ data_adj <- data_adj %>%
 
 write.csv(data_adj, "data/processed/lid/old_routine.csv")
 
-# Plot 
-data_adj |> 
-  group_by(date, day_type) |> 
-  select(workout, date, weight_real, weight_total, day_type) |> 
-  summarize(weight_day_total = sum(as.numeric(weight_total), na.rm = TRUE)) |> 
-  ggplot(aes(x = date, y = weight_day_total, color = day_type)) +
-  geom_point(size = 4) +
-  geom_smooth(method = "lm", se = F) +
-  theme_minimal() +
-  #facet_wrap(~day_type) +
-  theme(axis.title.x = element_blank(),
-        legend.position = "bottom",
-        legend.background = element_rect(color = "white")) +
-  ylab("Cumulative weight moved (metric tons)") +
-  scale_color_brewer(type = "cat", palette = "Dark2", name = "Workout")

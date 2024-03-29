@@ -31,8 +31,9 @@ workout.list <- temp.df |>
 
 temp.df$workout <- factor(temp.df$workout, levels = workout.list)
 
-plot.list[[i]] <- ggplot(temp.df,
-                         aes(x = date, y = workout_total, color = workout_day)) +
+plot.list[[i]] <- temp.df |> 
+  filter(workout_total != 0) |> 
+  ggplot(aes(x = date, y = workout_total, color = workout_day)) +
   geom_point(size = 4) +
   geom_smooth(method = "lm", se = F) +
   scale_color_manual(values = pal[[i]]) +
